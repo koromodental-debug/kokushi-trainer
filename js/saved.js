@@ -1,17 +1,13 @@
 /**
- * 保存済み問題管理ページ
- * アコーディオン形式で問題を表示・管理
+ * 問題一覧ページ
+ * 静的JSONファイルから問題を読み込んで表示・学習
  */
-
-import { exportToCSV, exportToJSON } from './generator.js';
-
-// LocalStorageキー
-const STORAGE_KEY = 'kokushi_saved_questions';
 
 // アプリケーション状態
 const state = {
-  savedQuestions: [],
-  filteredQuestions: [],
+  allQuestions: [],      // 全問題
+  filteredQuestions: [], // フィルタ後の問題
+  subjectsIndex: null,   // 科目インデックス
   currentFilter: {
     subject: '',
     theme: ''
@@ -28,20 +24,57 @@ const state = {
 /**
  * 初期化
  */
-function init() {
-  loadSavedQuestions();
+async function init() {
+  showLoading(true);
 
-  if (state.savedQuestions.length === 0) {
+  try {
+    // インデックスを読み込む
+    const indexResponse = await fetch('data/questions/index.json');
+    if (!indexResponse.ok) throw new Error('Failed to load index');
+    state.subjectsIndex = await indexResponse.json();
+
+    // 全科目の問題を読み込む
+    const allQuestions = [];
+    for (const subject of state.subjectsIndex.subjects) {
+      const response = await fetch(`data/questions/${subject.file}`);
+      if (response.ok) {
+        const data = await response.json();
+        allQuestions.push(...data.questions);
+      }
+    }
+
+    state.allQuestions = allQuestions;
+    state.filteredQuestions = [...allQuestions];
+
+    console.log(`Loaded ${allQuestions.length} questions from ${state.subjectsIndex.subjects.length} subjects`);
+
+    showLoading(false);
+
+    if (state.allQuestions.length === 0) {
+      showEmptyState();
+      return;
+    }
+
+    renderStatsDashboard();
+    updateFilterDropdowns();
+    renderQuestions();
+    setupEventListeners();
+
+  } catch (error) {
+    console.error('Failed to load questions:', error);
+    showLoading(false);
     showEmptyState();
-    return;
   }
+}
 
-  state.filteredQuestions = [...state.savedQuestions];
-
-  renderStatsDashboard();
-  updateFilterDropdowns();
-  renderQuestions();
-  setupEventListeners();
+/**
+ * ローディング表示
+ */
+function showLoading(show) {
+  const loading = document.getElementById('loading-state');
+  if (loading) {
+    loading.hidden = !show;
+  }
 }
 
 /**
@@ -56,24 +89,9 @@ function setupEventListeners() {
   // アクション
   document.getElementById('expand-all-btn').addEventListener('click', expandAll);
   document.getElementById('collapse-all-btn').addEventListener('click', collapseAll);
-  document.getElementById('find-duplicates-btn').addEventListener('click', findDuplicates);
   document.getElementById('start-filtered-exam-btn').addEventListener('click', startExam);
   document.getElementById('export-csv-btn').addEventListener('click', onExportCSV);
   document.getElementById('export-json-btn').addEventListener('click', onExportJSON);
-  document.getElementById('delete-filtered-btn').addEventListener('click', deleteFilteredQuestions);
-
-  // 重複検出モーダル
-  document.getElementById('close-duplicates-btn').addEventListener('click', closeDuplicatesModal);
-  document.getElementById('cancel-duplicates-btn').addEventListener('click', closeDuplicatesModal);
-  document.getElementById('delete-selected-duplicates-btn').addEventListener('click', deleteSelectedDuplicates);
-  document.querySelector('#duplicates-modal .modal-backdrop').addEventListener('click', closeDuplicatesModal);
-
-  // テーマ統合モーダル
-  document.getElementById('merge-themes-btn').addEventListener('click', openMergeThemesModal);
-  document.getElementById('close-merge-btn').addEventListener('click', closeMergeThemesModal);
-  document.getElementById('cancel-merge-btn').addEventListener('click', closeMergeThemesModal);
-  document.getElementById('execute-merge-btn').addEventListener('click', executeMergeThemes);
-  document.querySelector('#merge-themes-modal .modal-backdrop').addEventListener('click', closeMergeThemesModal);
 
   // 試験関連
   document.getElementById('exam-prev-btn').addEventListener('click', () => navigateExam(-1));
@@ -83,36 +101,11 @@ function setupEventListeners() {
 }
 
 /**
- * 保存済み問題を読み込む
- */
-function loadSavedQuestions() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    state.savedQuestions = saved ? JSON.parse(saved) : [];
-  } catch (error) {
-    console.error('Failed to load saved questions:', error);
-    state.savedQuestions = [];
-  }
-}
-
-/**
- * 保存済み問題を保存
- */
-function saveSavedQuestions() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.savedQuestions));
-  } catch (error) {
-    console.error('Failed to save questions:', error);
-    alert('保存に失敗しました。');
-  }
-}
-
-/**
  * 空状態を表示
  */
 function showEmptyState() {
   document.getElementById('empty-state').hidden = false;
-  document.querySelectorAll('.section:not(#empty-state)').forEach(el => {
+  document.querySelectorAll('.section:not(#empty-state):not(#loading-state)').forEach(el => {
     if (!el.querySelector('.header')) el.hidden = true;
   });
 }
@@ -122,7 +115,7 @@ function showEmptyState() {
  */
 function calculateStats() {
   const stats = {};
-  state.savedQuestions.forEach(q => {
+  state.allQuestions.forEach(q => {
     const subject = q.subject || '未分類';
     const theme = q.theme || '未分類';
     if (!stats[subject]) stats[subject] = { total: 0, themes: {} };
@@ -141,11 +134,11 @@ function renderStatsDashboard() {
   const treeContainer = document.getElementById('stats-tree');
   const totalCountEl = document.getElementById('stats-total-count');
 
-  totalCountEl.textContent = `${state.savedQuestions.length}問`;
+  totalCountEl.textContent = `${state.allQuestions.length}問`;
   treeContainer.innerHTML = '';
 
   if (Object.keys(stats).length === 0) {
-    treeContainer.innerHTML = '<div class="stats-empty">保存済みの問題がありません</div>';
+    treeContainer.innerHTML = '<div class="stats-empty">問題がありません</div>';
     return;
   }
 
@@ -273,7 +266,7 @@ function filterByTheme(subject, theme) {
 function applyFilter() {
   const { subject, theme } = state.currentFilter;
 
-  state.filteredQuestions = state.savedQuestions.filter(q => {
+  state.filteredQuestions = state.allQuestions.filter(q => {
     if (subject && (q.subject || '未分類') !== subject) return false;
     if (theme && (q.theme || '未分類') !== theme) return false;
     return true;
@@ -303,7 +296,7 @@ function clearFilter() {
   document.getElementById('filter-theme').value = '';
   document.getElementById('filter-theme').disabled = true;
   document.getElementById('filter-result').hidden = true;
-  state.filteredQuestions = [...state.savedQuestions];
+  state.filteredQuestions = [...state.allQuestions];
   renderQuestions();
 }
 
@@ -413,20 +406,12 @@ function createAccordionItem(question, number) {
     </ul>
     <div class="explanation">
       <div class="explanation-label">解説</div>
-      ${escapeHtml(question.explanation)}
-    </div>
-    <div class="accordion-actions">
-      <button class="btn btn-danger btn-sm delete-question-btn" data-id="${question.id}">この問題を削除</button>
+      ${escapeHtml(question.explanation || '解説なし')}
     </div>
   `;
 
   header.addEventListener('click', () => {
     item.classList.toggle('expanded');
-  });
-
-  content.querySelector('.delete-question-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    deleteQuestion(question.id);
   });
 
   item.appendChild(header);
@@ -454,87 +439,42 @@ function collapseAll() {
 }
 
 /**
- * 個別の問題を削除
- */
-function deleteQuestion(id) {
-  if (!confirm('この問題を削除しますか？')) return;
-
-  state.savedQuestions = state.savedQuestions.filter(q => q.id !== id);
-  state.filteredQuestions = state.filteredQuestions.filter(q => q.id !== id);
-  saveSavedQuestions();
-
-  const item = document.querySelector(`.accordion-item[data-id="${id}"]`);
-  if (item) {
-    item.style.animation = 'fadeOut 0.3s ease';
-    setTimeout(() => {
-      item.remove();
-      renderStatsDashboard();
-      updateFilterDropdowns();
-
-      if (state.savedQuestions.length === 0) {
-        showEmptyState();
-      }
-    }, 300);
-  }
-}
-
-/**
- * 絞り込んだ問題を削除
- */
-function deleteFilteredQuestions() {
-  const questions = state.filteredQuestions;
-  if (questions.length === 0) {
-    alert('削除する問題がありません。');
-    return;
-  }
-
-  const { subject, theme } = state.currentFilter;
-  let msg = '';
-  if (subject && theme) {
-    msg = `「${subject} > ${theme}」の${questions.length}問を削除しますか？`;
-  } else if (subject) {
-    msg = `「${subject}」の${questions.length}問を削除しますか？`;
-  } else {
-    msg = `全${questions.length}問を削除しますか？`;
-  }
-
-  if (!confirm(msg + '\nこの操作は取り消せません。')) return;
-
-  const deleteIds = new Set(questions.map(q => q.id));
-  state.savedQuestions = state.savedQuestions.filter(q => !deleteIds.has(q.id));
-  saveSavedQuestions();
-
-  clearFilter();
-  renderStatsDashboard();
-  updateFilterDropdowns();
-
-  if (state.savedQuestions.length === 0) {
-    showEmptyState();
-  } else {
-    alert(`${deleteIds.size}問を削除しました。`);
-  }
-}
-
-/**
  * CSVエクスポート
  */
 function onExportCSV() {
-  const questions = state.filteredQuestions.length > 0 ? state.filteredQuestions : state.savedQuestions;
+  const questions = state.filteredQuestions.length > 0 ? state.filteredQuestions : state.allQuestions;
   if (questions.length === 0) return;
 
-  const csv = exportToCSV(questions, { subject: '保存済み問題' });
-  downloadFile(csv, `saved_questions_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+  const headers = ['subject', 'theme', 'question', 'choice_a', 'choice_b', 'choice_c', 'choice_d', 'choice_e', 'answer', 'explanation'];
+  const rows = questions.map(q => [
+    q.subject || '',
+    q.theme || '',
+    q.question,
+    q.choices[0] || '',
+    q.choices[1] || '',
+    q.choices[2] || '',
+    q.choices[3] || '',
+    q.choices[4] || '',
+    q.answer,
+    q.explanation || ''
+  ]);
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+
+  downloadFile(csv, `questions_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
 }
 
 /**
  * JSONエクスポート
  */
 function onExportJSON() {
-  const questions = state.filteredQuestions.length > 0 ? state.filteredQuestions : state.savedQuestions;
+  const questions = state.filteredQuestions.length > 0 ? state.filteredQuestions : state.allQuestions;
   if (questions.length === 0) return;
 
-  const json = exportToJSON(questions, { subject: '保存済み問題' });
-  downloadFile(json, `saved_questions_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
+  const json = JSON.stringify({ questions }, null, 2);
+  downloadFile(json, `questions_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
 }
 
 /**
@@ -560,7 +500,7 @@ function downloadFile(content, filename, mimeType) {
  * 模擬試験開始
  */
 function startExam() {
-  const questions = state.filteredQuestions.length > 0 ? state.filteredQuestions : state.savedQuestions;
+  const questions = state.filteredQuestions.length > 0 ? state.filteredQuestions : state.allQuestions;
   if (questions.length === 0) {
     alert('問題がありません。');
     return;
@@ -739,363 +679,10 @@ function hideAllSections() {
  */
 function showAllSections() {
   document.querySelectorAll('.main-content > .section').forEach(el => {
-    if (el.id !== 'empty-state' && el.id !== 'exam-section' && el.id !== 'exam-results-section') {
+    if (el.id !== 'empty-state' && el.id !== 'loading-state' && el.id !== 'exam-section' && el.id !== 'exam-results-section') {
       el.hidden = false;
     }
   });
-}
-
-// ====================
-// 重複検出機能
-// ====================
-
-// 削除対象のIDを保持
-let duplicatesToDelete = new Set();
-
-/**
- * 重複問題を検出
- */
-function findDuplicates() {
-  // 問題文でグループ化（正規化して比較）
-  const groups = {};
-
-  state.savedQuestions.forEach(q => {
-    // 問題文を正規化（空白・改行を統一）
-    const normalizedQuestion = normalizeText(q.question);
-
-    if (!groups[normalizedQuestion]) {
-      groups[normalizedQuestion] = [];
-    }
-    groups[normalizedQuestion].push(q);
-  });
-
-  // 2件以上ある（重複している）グループを抽出
-  const duplicateGroups = Object.entries(groups)
-    .filter(([_, questions]) => questions.length > 1)
-    .map(([normalizedQuestion, questions]) => ({
-      question: questions[0].question, // 元の問題文
-      items: questions.sort((a, b) => {
-        // インポート日時でソート（古い順）
-        const dateA = new Date(a.importedAt || 0);
-        const dateB = new Date(b.importedAt || 0);
-        return dateA - dateB;
-      })
-    }));
-
-  // 結果を表示
-  showDuplicatesModal(duplicateGroups);
-}
-
-/**
- * テキストを正規化
- */
-function normalizeText(text) {
-  return text
-    .replace(/\s+/g, ' ')  // 連続空白を1つに
-    .replace(/　/g, ' ')   // 全角スペースを半角に
-    .trim()
-    .toLowerCase();
-}
-
-/**
- * 重複検出モーダルを表示
- */
-function showDuplicatesModal(duplicateGroups) {
-  const modal = document.getElementById('duplicates-modal');
-  const summary = document.getElementById('duplicates-summary');
-  const list = document.getElementById('duplicates-list');
-
-  // 初期化
-  duplicatesToDelete = new Set();
-  list.innerHTML = '';
-
-  if (duplicateGroups.length === 0) {
-    summary.className = 'duplicates-summary no-duplicates';
-    summary.textContent = '重複問題は見つかりませんでした';
-    document.getElementById('delete-selected-duplicates-btn').hidden = true;
-  } else {
-    const totalDuplicates = duplicateGroups.reduce((sum, g) => sum + g.items.length - 1, 0);
-    summary.className = 'duplicates-summary';
-    summary.textContent = `${duplicateGroups.length}グループ、${totalDuplicates}件の重複が見つかりました`;
-    document.getElementById('delete-selected-duplicates-btn').hidden = false;
-
-    // グループごとに表示
-    duplicateGroups.forEach((group, groupIndex) => {
-      const groupEl = document.createElement('div');
-      groupEl.className = 'duplicate-group';
-
-      groupEl.innerHTML = `
-        <div class="duplicate-group-header">
-          <span class="duplicate-group-title">グループ ${groupIndex + 1}</span>
-          <span class="duplicate-group-count">${group.items.length}件の重複</span>
-        </div>
-        <div class="duplicate-question-preview">${escapeHtml(truncate(group.question, 100))}</div>
-        <div class="duplicate-items" data-group="${groupIndex}"></div>
-      `;
-
-      const itemsContainer = groupEl.querySelector('.duplicate-items');
-
-      group.items.forEach((item, itemIndex) => {
-        const isFirst = itemIndex === 0;
-        const itemEl = document.createElement('div');
-        itemEl.className = `duplicate-item ${isFirst ? 'to-keep' : 'to-delete'}`;
-        itemEl.dataset.id = item.id;
-
-        const importDate = item.importedAt
-          ? new Date(item.importedAt).toLocaleDateString('ja-JP')
-          : '不明';
-
-        itemEl.innerHTML = `
-          <input type="checkbox"
-                 ${isFirst ? '' : 'checked'}
-                 data-id="${item.id}"
-                 data-group="${groupIndex}"
-                 title="${isFirst ? 'チェックで削除対象に' : 'チェック解除で保持'}">
-          <div class="duplicate-item-info">
-            <div class="duplicate-item-subject">${escapeHtml(item.subject || '未分類')} / ${escapeHtml(item.theme || '未分類')}</div>
-            <div class="duplicate-item-date">インポート: ${importDate}</div>
-          </div>
-          <span class="duplicate-item-label ${isFirst ? 'keep' : 'delete'}">${isFirst ? '保持' : '削除'}</span>
-        `;
-
-        // チェックボックスのイベント
-        const checkbox = itemEl.querySelector('input[type="checkbox"]');
-        checkbox.addEventListener('change', (e) => {
-          updateDuplicateSelection(e.target);
-        });
-
-        // 初期状態で最初以外を削除対象に
-        if (!isFirst) {
-          duplicatesToDelete.add(item.id);
-        }
-
-        itemsContainer.appendChild(itemEl);
-      });
-
-      list.appendChild(groupEl);
-    });
-  }
-
-  modal.hidden = false;
-}
-
-/**
- * 重複選択を更新
- */
-function updateDuplicateSelection(checkbox) {
-  const id = checkbox.dataset.id;
-  const itemEl = checkbox.closest('.duplicate-item');
-  const label = itemEl.querySelector('.duplicate-item-label');
-
-  if (checkbox.checked) {
-    duplicatesToDelete.add(id);
-    itemEl.classList.remove('to-keep');
-    itemEl.classList.add('to-delete');
-    label.textContent = '削除';
-    label.classList.remove('keep');
-    label.classList.add('delete');
-  } else {
-    duplicatesToDelete.delete(id);
-    itemEl.classList.remove('to-delete');
-    itemEl.classList.add('to-keep');
-    label.textContent = '保持';
-    label.classList.remove('delete');
-    label.classList.add('keep');
-  }
-
-  // 削除ボタンのテキスト更新
-  const deleteBtn = document.getElementById('delete-selected-duplicates-btn');
-  deleteBtn.textContent = `選択した${duplicatesToDelete.size}件を削除`;
-}
-
-/**
- * 選択した重複を削除
- */
-function deleteSelectedDuplicates() {
-  if (duplicatesToDelete.size === 0) {
-    alert('削除する問題を選択してください。');
-    return;
-  }
-
-  if (!confirm(`${duplicatesToDelete.size}件の重複問題を削除しますか？`)) {
-    return;
-  }
-
-  // 削除実行
-  state.savedQuestions = state.savedQuestions.filter(q => !duplicatesToDelete.has(q.id));
-  saveSavedQuestions();
-
-  // モーダルを閉じる
-  closeDuplicatesModal();
-
-  // 画面を更新
-  state.filteredQuestions = [...state.savedQuestions];
-  clearFilter();
-  renderStatsDashboard();
-  updateFilterDropdowns();
-  renderQuestions();
-
-  if (state.savedQuestions.length === 0) {
-    showEmptyState();
-  }
-
-  alert(`${duplicatesToDelete.size}件の重複問題を削除しました。`);
-}
-
-/**
- * 重複検出モーダルを閉じる
- */
-function closeDuplicatesModal() {
-  document.getElementById('duplicates-modal').hidden = true;
-  duplicatesToDelete = new Set();
-}
-
-// ====================
-// テーマ統合機能
-// ====================
-
-// 選択されたテーマを保持
-let selectedThemesToMerge = new Set();
-
-/**
- * テーマ統合モーダルを開く
- */
-function openMergeThemesModal() {
-  const modal = document.getElementById('merge-themes-modal');
-  const list = document.getElementById('merge-themes-list');
-  const targetInput = document.getElementById('merge-target-name');
-
-  // 初期化
-  selectedThemesToMerge = new Set();
-  targetInput.value = '';
-  list.innerHTML = '';
-
-  // テーマ一覧を取得（科目+テーマでグループ化）
-  const themeGroups = {};
-  state.savedQuestions.forEach(q => {
-    const subject = q.subject || '未分類';
-    const theme = q.theme || '未分類';
-    const key = `${subject}|||${theme}`;
-    if (!themeGroups[key]) {
-      themeGroups[key] = { subject, theme, count: 0 };
-    }
-    themeGroups[key].count++;
-  });
-
-  // テーマをリスト化（問題数が少ない順にソート）
-  const themes = Object.values(themeGroups).sort((a, b) => a.count - b.count);
-
-  if (themes.length === 0) {
-    list.innerHTML = '<div class="no-questions">テーマがありません</div>';
-    modal.hidden = false;
-    return;
-  }
-
-  // テーマをリスト表示
-  themes.forEach(({ subject, theme, count }) => {
-    const item = document.createElement('div');
-    item.className = 'merge-theme-item';
-    item.dataset.subject = subject;
-    item.dataset.theme = theme;
-
-    item.innerHTML = `
-      <input type="checkbox" data-subject="${escapeHtml(subject)}" data-theme="${escapeHtml(theme)}">
-      <div class="merge-theme-info">
-        <div class="merge-theme-name">${escapeHtml(theme)}</div>
-        <div class="merge-theme-subject">${escapeHtml(subject)}</div>
-      </div>
-      <span class="merge-theme-count">${count}問</span>
-    `;
-
-    const checkbox = item.querySelector('input[type="checkbox"]');
-    checkbox.addEventListener('change', (e) => {
-      const key = `${subject}|||${theme}`;
-      if (e.target.checked) {
-        selectedThemesToMerge.add(key);
-        item.classList.add('selected');
-        // 最初に選択したテーマを統合先の候補として入力
-        if (selectedThemesToMerge.size === 1 && !targetInput.value) {
-          targetInput.value = theme;
-        }
-      } else {
-        selectedThemesToMerge.delete(key);
-        item.classList.remove('selected');
-      }
-    });
-
-    item.addEventListener('click', (e) => {
-      if (e.target !== checkbox) {
-        checkbox.checked = !checkbox.checked;
-        checkbox.dispatchEvent(new Event('change'));
-      }
-    });
-
-    list.appendChild(item);
-  });
-
-  modal.hidden = false;
-}
-
-/**
- * テーマ統合を実行
- */
-function executeMergeThemes() {
-  const targetName = document.getElementById('merge-target-name').value.trim();
-
-  if (!targetName) {
-    alert('統合先のテーマ名を入力してください。');
-    return;
-  }
-
-  if (selectedThemesToMerge.size < 2) {
-    alert('統合するテーマを2つ以上選択してください。');
-    return;
-  }
-
-  // 選択されたテーマのsubject, themeを取得
-  const themesToMerge = Array.from(selectedThemesToMerge).map(key => {
-    const [subject, theme] = key.split('|||');
-    return { subject, theme };
-  });
-
-  // 確認
-  const themeNames = themesToMerge.map(t => t.theme).join('」「');
-  if (!confirm(`「${themeNames}」を「${targetName}」に統合しますか？`)) {
-    return;
-  }
-
-  // 統合実行
-  let count = 0;
-  state.savedQuestions.forEach(q => {
-    const subject = q.subject || '未分類';
-    const theme = q.theme || '未分類';
-    const key = `${subject}|||${theme}`;
-
-    if (selectedThemesToMerge.has(key)) {
-      q.theme = targetName;
-      count++;
-    }
-  });
-
-  saveSavedQuestions();
-  closeMergeThemesModal();
-
-  // 画面を更新
-  state.filteredQuestions = [...state.savedQuestions];
-  clearFilter();
-  renderStatsDashboard();
-  updateFilterDropdowns();
-  renderQuestions();
-
-  alert(`${count}問のテーマを「${targetName}」に統合しました。`);
-}
-
-/**
- * テーマ統合モーダルを閉じる
- */
-function closeMergeThemesModal() {
-  document.getElementById('merge-themes-modal').hidden = true;
-  selectedThemesToMerge = new Set();
 }
 
 // ====================

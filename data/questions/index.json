@@ -1,0 +1,31 @@
+{
+  "subjects": [
+    {
+      "name": "インプラント",
+      "file": "implant.json",
+      "count": 49
+    },
+    {
+      "name": "全部床義歯学",
+      "file": "complete-denture.json",
+      "count": 4
+    },
+    {
+      "name": "公衆衛生",
+      "file": "public-health.json",
+      "count": 76
+    },
+    {
+      "name": "冠橋義歯学",
+      "file": "crown-bridge.json",
+      "count": 8
+    },
+    {
+      "name": "口腔衛生",
+      "file": "oral-hygiene.json",
+      "count": 45
+    }
+  ],
+  "totalQuestions": 182,
+  "lastUpdated": "2026-02-03T20:24:54.831Z"
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>保存済み問題 - 国試問題ジェネレーター</title>
+  <title>問題一覧 - 国試トレーナー</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -16,12 +16,22 @@
         </svg>
         戻る
       </a>
-      <h1 class="header-title">保存済み問題</h1>
+      <h1 class="header-title">問題一覧</h1>
       <div style="width: 60px;"></div>
     </header>
 
     <!-- メインコンテンツ -->
     <main class="main-content">
+      <!-- ローディング -->
+      <section id="loading-state" class="section">
+        <div class="card">
+          <div class="loading-container">
+            <div class="spinner-large"></div>
+            <p>問題を読み込んでいます...</p>
+          </div>
+        </div>
+      </section>
+
       <!-- 統計ダッシュボード -->
       <section class="section">
         <div class="card">
@@ -53,13 +63,10 @@
           <div class="saved-actions-bar">
             <button id="expand-all-btn" class="btn btn-secondary btn-sm">すべて展開</button>
             <button id="collapse-all-btn" class="btn btn-secondary btn-sm">すべて折りたたみ</button>
-            <button id="find-duplicates-btn" class="btn btn-warning btn-sm">重複を検出</button>
-            <button id="merge-themes-btn" class="btn btn-secondary btn-sm">テーマを統合</button>
             <button id="start-filtered-exam-btn" class="btn btn-accent btn-sm">模擬試験</button>
             <div class="saved-actions-right">
               <button id="export-csv-btn" class="btn btn-secondary btn-sm">CSV</button>
               <button id="export-json-btn" class="btn btn-secondary btn-sm">JSON</button>
-              <button id="delete-filtered-btn" class="btn btn-danger btn-sm">削除</button>
             </div>
           </div>
 
@@ -88,9 +95,8 @@
               <line x1="9" y1="15" x2="15" y2="15"/>
             </svg>
           </div>
-          <h3>保存済みの問題がありません</h3>
-          <p>問題をインポートしてください</p>
-          <a href="index.html" class="btn btn-primary">問題を生成・インポート</a>
+          <h3>問題がありません</h3>
+          <p>問題データを準備中です</p>
         </div>
       </section>
     </main>
@@ -137,62 +143,6 @@
     </section>
   </div>
 
-    <!-- テーマ統合モーダル -->
-    <div id="merge-themes-modal" class="modal" hidden>
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-large">
-        <div class="modal-header">
-          <h2 class="modal-title">テーマの統合</h2>
-          <button id="close-merge-btn" class="icon-btn" aria-label="閉じる">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <p class="merge-hint">統合したいテーマにチェックを入れ、統合先のテーマ名を入力してください。</p>
-
-          <div class="merge-target">
-            <label class="form-label">統合先のテーマ名</label>
-            <input type="text" id="merge-target-name" class="form-input" placeholder="例: フッ化物応用法">
-          </div>
-
-          <div class="merge-themes-list" id="merge-themes-list">
-            <!-- テーマ一覧 -->
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="execute-merge-btn" class="btn btn-primary">統合を実行</button>
-          <button id="cancel-merge-btn" class="btn btn-secondary">キャンセル</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 重複検出モーダル -->
-    <div id="duplicates-modal" class="modal" hidden>
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-large">
-        <div class="modal-header">
-          <h2 class="modal-title">重複問題の検出結果</h2>
-          <button id="close-duplicates-btn" class="icon-btn" aria-label="閉じる">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div id="duplicates-summary" class="duplicates-summary"></div>
-          <div id="duplicates-list" class="duplicates-list"></div>
-        </div>
-        <div class="modal-footer">
-          <button id="delete-selected-duplicates-btn" class="btn btn-danger">選択した重複を削除</button>
-          <button id="cancel-duplicates-btn" class="btn btn-secondary">キャンセル</button>
-        </div>
-      </div>
-    </div>
-
-  <script type="module" src="js/saved.js"></script>
+  <script src="js/saved.js"></script>
 </body>
 </html>
