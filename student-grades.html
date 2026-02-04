@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>成績履歴 - 国試トレーナー</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header" id="app-header">
+      <h1 class="header-title">国試トレーナー</h1>
+    </header>
+
+    <main class="main-content">
+      <!-- ローディング -->
+      <section id="loading-state" class="section">
+        <div class="card">
+          <div class="loading-container">
+            <div class="spinner-large"></div>
+            <p>成績を読み込んでいます...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 成績履歴 -->
+      <section id="grades-section" class="section" hidden>
+        <div class="card">
+          <h2 class="section-title">成績履歴</h2>
+
+          <!-- サマリー -->
+          <div id="grades-summary" style="margin-bottom:20px;"></div>
+
+          <!-- テーブル -->
+          <div class="grades-table-wrapper">
+            <table class="grades-table" id="grades-table">
+              <thead>
+                <tr>
+                  <th>問題セット</th>
+                  <th>得点</th>
+                  <th>正答率</th>
+                  <th>時間</th>
+                  <th>日時</th>
+                </tr>
+              </thead>
+              <tbody id="grades-tbody">
+              </tbody>
+            </table>
+          </div>
+
+          <div id="empty-grades" class="no-questions" hidden>
+            まだ成績がありません。問題セットを解いてみましょう。
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/student-grades.js"></script>
+</body>
+</html>

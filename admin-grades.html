@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>成績ダッシュボード - 国試トレーナー</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header" id="app-header">
+      <h1 class="header-title">国試トレーナー</h1>
+    </header>
+
+    <main class="main-content">
+      <!-- ローディング -->
+      <section id="loading-state" class="section">
+        <div class="card">
+          <div class="loading-container">
+            <div class="spinner-large"></div>
+            <p>成績を読み込んでいます...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 成績ダッシュボード -->
+      <section id="grades-section" class="section" hidden>
+        <div class="card">
+          <div class="results-header">
+            <h2 class="section-title" id="grades-title">成績ダッシュボード</h2>
+            <div class="results-actions">
+              <button id="export-csv-btn" class="btn btn-secondary btn-sm">CSV出力</button>
+            </div>
+          </div>
+
+          <!-- フィルター -->
+          <div class="search-bar">
+            <input type="text" id="search-input" class="search-input" placeholder="学生名・メールで検索...">
+            <select id="filter-set" class="form-select filter-select">
+              <option value="">すべての問題セット</option>
+            </select>
+          </div>
+
+          <!-- テーブル -->
+          <div class="grades-table-wrapper">
+            <table class="grades-table" id="grades-table">
+              <thead>
+                <tr>
+                  <th>学生</th>
+                  <th>問題セット</th>
+                  <th>共有コード</th>
+                  <th>得点</th>
+                  <th>正答率</th>
+                  <th>時間</th>
+                  <th>日時</th>
+                </tr>
+              </thead>
+              <tbody id="grades-tbody">
+              </tbody>
+            </table>
+          </div>
+
+          <div id="empty-grades" class="no-questions" hidden>
+            成績データがありません。
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/admin-grades.js"></script>
+</body>
+</html>

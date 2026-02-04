@@ -6,6 +6,9 @@
 import { loadSubjects, loadQuestions, getThemeFilePath, getAllThemeFilePaths, loadHtmlContent, loadMultipleHtmlContents } from './data.js';
 import { loadSettings, saveSettings, hasApiKey, estimateCost, getCurrentProvider } from './api.js';
 import { generateQuestions, exportToCSV, exportToJSON, buildPrompt } from './generator.js';
+import { requireRole, getCurrentUser } from './auth.js';
+import { renderAuthHeader } from './nav.js';
+import { createQuestionSet } from './firestore.js';
 
 // アプリケーション状態
 const state = {
@@ -58,6 +61,13 @@ const elements = {
  * 初期化
  */
 async function init() {
+  // 認証 & admin権限チェック
+  const user = await requireRole('admin');
+  if (!user) return;
+
+  // 認証ヘッダー描画
+  renderAuthHeader(document.getElementById('app-header'), user, 'admin', { showSettings: true });
+
   // DOM要素を取得
   elements.subjectSelect = document.getElementById('subject-select');
   elements.themeSelect = document.getElementById('theme-select');
@@ -193,6 +203,12 @@ function setupEventListeners() {
   // インポート関連
   document.getElementById('import-btn').addEventListener('click', onImportJSON);
   document.getElementById('clear-saved-btn').addEventListener('click', clearSavedQuestions);
+
+  // 問題セット作成
+  document.getElementById('create-set-btn').addEventListener('click', openCreateSetModal);
+  document.getElementById('close-create-set-btn').addEventListener('click', closeCreateSetModal);
+  document.getElementById('create-set-modal').querySelector('.modal-backdrop').addEventListener('click', closeCreateSetModal);
+  document.getElementById('create-set-submit-btn').addEventListener('click', onCreateQuestionSet);
 }
 
 /**
@@ -893,6 +909,15 @@ function onImportJSON() {
     state.savedQuestions = [...state.savedQuestions, ...importedQuestions];
     saveSavedQuestions();
 
+    // 生成結果としても表示（問題セット作成ボタンを使えるようにする）
+    state.generatedQuestions = importedQuestions;
+    state.generationContext = {
+      subject: importedQuestions[0]?.subject || '未分類',
+      theme: importedQuestions[0]?.theme || '',
+      difficulty: ''
+    };
+    displayResults(importedQuestions);
+
     // 入力をクリア
     input.value = '';
 
@@ -946,6 +971,79 @@ function clearSavedQuestions() {
 }
 
 
+
+// ====================
+// 問題セット作成
+// ====================
+
+function openCreateSetModal() {
+  if (state.generatedQuestions.length === 0) {
+    alert('問題がまだ生成されていません。');
+    return;
+  }
+
+  const modal = document.getElementById('create-set-modal');
+  document.getElementById('set-question-count').textContent = state.generatedQuestions.length;
+
+  // タイトルのデフォルト値
+  const titleInput = document.getElementById('set-title-input');
+  if (!titleInput.value) {
+    const { subject, theme } = state.generationContext;
+    titleInput.value = `${subject}${theme && theme !== 'すべてのテーマ' ? ' - ' + theme : ''}`;
+  }
+
+  modal.hidden = false;
+}
+
+function closeCreateSetModal() {
+  document.getElementById('create-set-modal').hidden = true;
+}
+
+async function onCreateQuestionSet() {
+  const title = document.getElementById('set-title-input').value.trim();
+  const description = document.getElementById('set-description-input').value.trim();
+
+  if (!title) {
+    alert('タイトルを入力してください。');
+    return;
+  }
+
+  const submitBtn = document.getElementById('create-set-submit-btn');
+  submitBtn.querySelector('.btn-text').hidden = true;
+  submitBtn.querySelector('.btn-loading').hidden = false;
+  submitBtn.disabled = true;
+
+  try {
+    const user = getCurrentUser();
+    const questions = state.generatedQuestions.map((q, i) => ({
+      id: q.id || `q_${Date.now()}_${i}`,
+      question: q.question,
+      choices: q.choices,
+      answer: q.answer,
+      explanation: q.explanation || '',
+      subject: q.subject || state.generationContext.subject || '',
+      theme: q.theme || state.generationContext.theme || ''
+    }));
+
+    await createQuestionSet({
+      title,
+      description,
+      questions,
+      createdBy: user.uid
+    });
+
+    closeCreateSetModal();
+    alert('問題セットを作成しました。「問題セット」ページで共有コードを確認できます。');
+
+  } catch (error) {
+    console.error('Failed to create question set:', error);
+    alert('問題セットの作成に失敗しました: ' + error.message);
+  } finally {
+    submitBtn.querySelector('.btn-text').hidden = false;
+    submitBtn.querySelector('.btn-loading').hidden = true;
+    submitBtn.disabled = false;
+  }
+}
 
 // アプリケーションを初期化
 document.addEventListener('DOMContentLoaded', init);

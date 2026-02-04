@@ -24,3 +24,7 @@ npm-debug.log*
 # Build output
 dist/
 build/
+
+# Firebase
+.firebase/
+.firebaserc

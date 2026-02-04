@@ -8,8 +8,8 @@
 </head>
 <body>
   <div id="app">
-    <!-- ヘッダー -->
-    <header class="header">
+    <!-- ヘッダー (認証時はJSで上書き) -->
+    <header class="header" id="app-header">
       <a href="index.html" class="header-back">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 18l-6-6 6-6"/>
@@ -60,10 +60,15 @@
             <button id="filter-clear-btn" class="btn btn-secondary btn-sm">クリア</button>
           </div>
 
+          <div class="search-bar">
+            <input type="search" id="search-input" class="search-input" placeholder="問題文・選択肢・解説で検索...">
+          </div>
+
           <div class="saved-actions-bar">
             <button id="expand-all-btn" class="btn btn-secondary btn-sm">すべて展開</button>
             <button id="collapse-all-btn" class="btn btn-secondary btn-sm">すべて折りたたみ</button>
             <button id="start-filtered-exam-btn" class="btn btn-accent btn-sm">模擬試験</button>
+            <button id="create-set-btn" class="btn btn-warning btn-sm">問題セットに追加</button>
             <div class="saved-actions-right">
               <button id="export-csv-btn" class="btn btn-secondary btn-sm">CSV</button>
               <button id="export-json-btn" class="btn btn-secondary btn-sm">JSON</button>
@@ -143,6 +148,52 @@
     </section>
   </div>
 
-  <script src="js/saved.js"></script>
+  <!-- 問題セット作成モーダル -->
+  <div id="create-set-modal" class="modal" hidden>
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">問題セットを作成</h2>
+        <button id="close-create-set-btn" class="icon-btn" aria-label="閉じる">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">タイトル</label>
+          <input type="text" id="set-title-input" class="form-input" placeholder="例: 第1回 基礎テスト">
+        </div>
+        <div class="form-group">
+          <label class="form-label">説明（任意）</label>
+          <input type="text" id="set-description-input" class="form-input" placeholder="例: 保存修復の基礎問題">
+        </div>
+        <p class="form-hint"><span id="set-question-count">0</span>問を問題セットとして保存し、共有コードを発行します。</p>
+      </div>
+      <div class="modal-footer">
+        <button id="create-set-submit-btn" class="btn btn-primary">
+          <span class="btn-text">作成する</span>
+          <span class="btn-loading" hidden>
+            <span class="spinner"></span>
+            作成中...
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 選択バー（フローティング） -->
+  <div id="selection-bar" class="selection-bar" hidden>
+    <span id="selected-count" class="selection-bar-count">0問を選択中</span>
+    <div class="selection-bar-actions">
+      <button id="deselect-all-btn" class="btn btn-secondary btn-sm">選択解除</button>
+      <button id="create-set-selected-btn" class="btn btn-warning btn-sm">問題セットに追加</button>
+      <button id="delete-selected-btn" class="btn btn-danger btn-sm">まとめて削除</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/saved.js"></script>
 </body>
 </html>

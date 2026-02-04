@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ユーザー管理 - 国試トレーナー</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header" id="app-header">
+      <h1 class="header-title">国試トレーナー</h1>
+    </header>
+
+    <main class="main-content">
+      <!-- ローディング -->
+      <section id="loading-state" class="section">
+        <div class="card">
+          <div class="loading-container">
+            <div class="spinner-large"></div>
+            <p>ユーザーを読み込んでいます...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ユーザー一覧 -->
+      <section id="users-section" class="section" hidden>
+        <div class="card">
+          <div class="results-header">
+            <h2 class="section-title">ユーザー管理</h2>
+            <span class="total-count" id="users-count">0人</span>
+          </div>
+          <div class="search-bar">
+            <input type="text" id="search-input" class="search-input" placeholder="名前・メールで検索...">
+          </div>
+          <div id="users-container">
+          </div>
+          <div id="empty-users" class="no-questions" hidden>
+            ユーザーがいません。
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/admin-users.js"></script>
+</body>
+</html>

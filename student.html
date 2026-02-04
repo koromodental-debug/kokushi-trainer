@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ホーム - 国試トレーナー</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header" id="app-header">
+      <h1 class="header-title">国試トレーナー</h1>
+    </header>
+
+    <main class="main-content">
+      <!-- ローディング -->
+      <section id="loading-state" class="section">
+        <div class="card">
+          <div class="loading-container">
+            <div class="spinner-large"></div>
+            <p>読み込んでいます...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 共有コード入力 -->
+      <section id="join-section" class="section" hidden>
+        <div class="card join-section">
+          <h2 class="section-title">問題セットに参加</h2>
+          <p>先生から共有された6文字のコードを入力してください</p>
+          <div class="join-form">
+            <input type="text" id="share-code-input" class="form-input share-code-input"
+                   placeholder="例: HK3M7P" maxlength="6" autocomplete="off">
+            <button id="join-btn" class="btn btn-primary" style="width:auto;padding:12px 32px;">参加</button>
+          </div>
+          <div id="join-error" class="login-error" hidden style="margin-top:16px;"></div>
+        </div>
+      </section>
+
+      <!-- 参加済み問題セット一覧 -->
+      <section id="sets-section" class="section" hidden>
+        <div class="card">
+          <h2 class="section-title">問題セット</h2>
+          <div id="sets-container">
+          </div>
+          <div id="empty-sets" class="no-questions" hidden>
+            まだ問題セットに参加していません。共有コードを入力して参加しましょう。
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/student.js"></script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>問題セット管理 - 国試トレーナー</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header" id="app-header">
+      <h1 class="header-title">国試トレーナー</h1>
+    </header>
+
+    <main class="main-content">
+      <!-- ローディング -->
+      <section id="loading-state" class="section">
+        <div class="card">
+          <div class="loading-container">
+            <div class="spinner-large"></div>
+            <p>読み込んでいます...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 問題セット一覧 -->
+      <section id="sets-section" class="section" hidden>
+        <div class="card">
+          <div class="results-header">
+            <h2 class="section-title">問題セット管理</h2>
+            <span class="total-count" id="sets-count">0件</span>
+          </div>
+          <div id="sets-container">
+            <!-- 問題セットカードがここに表示 -->
+          </div>
+          <div id="empty-sets" class="no-questions" hidden>
+            問題セットがありません。問題生成ページから作成できます。
+          </div>
+        </div>
+      </section>
+
+      <!-- 問題セット編集セクション -->
+      <section id="edit-set-section" class="section" hidden>
+        <div class="card">
+          <button id="back-to-sets-btn" class="btn btn-secondary btn-sm" style="margin-bottom: 16px;">← セット一覧に戻る</button>
+          <h2 class="section-title">問題セットを編集</h2>
+          <div class="form-group">
+            <label class="form-label">タイトル</label>
+            <input type="text" id="edit-set-title" class="form-input" placeholder="タイトル">
+          </div>
+          <div class="form-group">
+            <label class="form-label">説明（任意）</label>
+            <input type="text" id="edit-set-description" class="form-input" placeholder="説明">
+          </div>
+          <div class="edit-set-questions-header">
+            <span>セット内の問題 (<span id="edit-set-question-count">0</span>問)</span>
+            <div class="edit-set-actions">
+              <button id="edit-select-all-btn" class="btn btn-secondary btn-sm">全選択</button>
+              <button id="edit-remove-selected-btn" class="btn btn-danger btn-sm" disabled>選択を除外</button>
+              <button id="edit-add-questions-btn" class="btn btn-accent btn-sm">問題を追加</button>
+            </div>
+          </div>
+          <div class="search-bar">
+            <input type="search" id="edit-search-input" class="search-input" placeholder="問題文・選択肢・解説で検索...">
+          </div>
+          <div id="edit-set-questions-container" class="accordion-list">
+          </div>
+          <div style="margin-top: 16px;">
+            <button id="save-edit-set-btn" class="btn btn-primary">
+              <span class="btn-text">保存</span>
+              <span class="btn-loading" hidden><span class="spinner"></span> 保存中...</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 問題追加セクション -->
+      <section id="add-questions-section" class="section" hidden>
+        <div class="card">
+          <button id="back-to-edit-btn" class="btn btn-secondary btn-sm" style="margin-bottom: 16px;">← 編集に戻る</button>
+          <h2 class="section-title">問題を追加</h2>
+          <div class="filter-bar">
+            <select id="add-filter-subject" class="form-select filter-select">
+              <option value="">すべての科目</option>
+            </select>
+            <select id="add-filter-theme" class="form-select filter-select" disabled>
+              <option value="">すべてのテーマ</option>
+            </select>
+          </div>
+          <div class="search-bar">
+            <input type="search" id="add-search-input" class="search-input" placeholder="問題文・選択肢・解説で検索...">
+          </div>
+          <div id="add-pool-count" class="filter-result" hidden></div>
+          <div id="add-pool-loading" class="loading-container" hidden>
+            <div class="spinner-large"></div>
+            <p>問題を読み込んでいます...</p>
+          </div>
+          <div id="add-questions-container" class="accordion-list">
+          </div>
+          <div id="add-empty" class="no-questions" hidden>
+            追加できる問題がありません。
+          </div>
+          <div style="margin-top: 16px;">
+            <button id="add-questions-submit-btn" class="btn btn-primary" disabled>
+              <span id="add-questions-count-text">0問を追加</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/admin-sets.js"></script>
+</body>
+</html>

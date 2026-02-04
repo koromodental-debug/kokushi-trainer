@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>試験 - 国試トレーナー</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header" id="app-header">
+      <h1 class="header-title">国試トレーナー</h1>
+    </header>
+
+    <main class="main-content">
+      <!-- ローディング -->
+      <section id="loading-state" class="section">
+        <div class="card">
+          <div class="loading-container">
+            <div class="spinner-large"></div>
+            <p>問題を読み込んでいます...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 試験開始前の確認 -->
+      <section id="start-section" class="section" hidden>
+        <div class="card" style="text-align:center;padding:48px 24px;">
+          <h2 class="section-title" id="exam-set-title">---</h2>
+          <p id="exam-set-info" style="color:var(--secondary-label);margin-bottom:24px;">---</p>
+          <button id="start-exam-btn" class="btn btn-accent" style="width:auto;padding:14px 48px;">試験を開始</button>
+        </div>
+      </section>
+
+      <!-- 模擬試験モード -->
+      <section id="exam-section" class="section" hidden>
+        <div class="card">
+          <div class="exam-header">
+            <h2 class="section-title">試験</h2>
+            <div class="exam-info">
+              <span id="exam-progress">1 / 5</span>
+              <span id="exam-timer">00:00</span>
+            </div>
+          </div>
+
+          <div id="exam-question" class="exam-question"></div>
+          <div id="exam-choices" class="exam-choices"></div>
+
+          <div class="exam-actions">
+            <button id="exam-prev-btn" class="btn btn-secondary" disabled>前の問題</button>
+            <button id="exam-next-btn" class="btn btn-primary">次の問題</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 試験結果 -->
+      <section id="exam-results-section" class="section" hidden>
+        <div class="card">
+          <h2 class="section-title">試験結果</h2>
+          <div class="exam-score">
+            <span class="score-value" id="score-value">0</span>
+            <span class="score-divider">/</span>
+            <span class="score-total" id="score-total">5</span>
+          </div>
+          <div class="score-percentage" id="score-percentage">0%</div>
+          <div id="saving-indicator" style="text-align:center;margin-bottom:16px;color:var(--secondary-label);font-size:0.875rem;" hidden>
+            <span class="spinner" style="border-top-color:var(--system-blue);border-color:var(--border-color);"></span>
+            成績を保存中...
+          </div>
+          <div id="save-success" style="text-align:center;margin-bottom:16px;color:var(--system-green);font-size:0.875rem;" hidden>
+            成績を保存しました
+          </div>
+
+          <div id="exam-review" class="exam-review"></div>
+
+          <div class="exam-results-actions">
+            <button id="retry-btn" class="btn btn-secondary">もう一度</button>
+            <button id="back-btn" class="btn btn-primary">ホームに戻る</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- エラー -->
+      <section id="error-section" class="section" hidden>
+        <div class="card empty-state-card">
+          <h3>問題セットが見つかりません</h3>
+          <p>URLが正しいか確認してください。</p>
+          <a href="student.html" class="btn btn-primary" style="width:auto;display:inline-flex;">ホームに戻る</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/student-exam.js"></script>
+</body>
+</html>

@@ -3,11 +3,21 @@
  * 静的JSONファイルから問題を読み込んで表示・学習
  */
 
+import { requireRole, getCurrentUser } from './auth.js';
+import { renderAuthHeader } from './nav.js';
+import { createQuestionSet } from './firestore.js';
+
+// LocalStorageキー（app.jsと共通）
+const STORAGE_KEY = 'kokushi_saved_questions';
+const DELETED_KEY = 'kokushi_deleted_questions';
+
 // アプリケーション状態
 const state = {
   allQuestions: [],      // 全問題
   filteredQuestions: [], // フィルタ後の問題
   subjectsIndex: null,   // 科目インデックス
+  selectedIds: new Set(), // 選択中の問題ID
+  searchQuery: '',
   currentFilter: {
     subject: '',
     theme: ''
@@ -22,9 +32,42 @@ const state = {
 };
 
 /**
+ * debounceユーティリティ
+ */
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+/**
+ * 検索マッチ判定
+ */
+function matchesSearch(q, query) {
+  if (!query) return true;
+  const haystack = [
+    q.question || '',
+    q.explanation || '',
+    q.theme || '',
+    q.subject || '',
+    ...(q.choices || [])
+  ].join(' ').toLowerCase();
+  return haystack.includes(query);
+}
+
+/**
  * 初期化
  */
 async function init() {
+  // 認証 & admin権限チェック
+  const user = await requireRole('admin');
+  if (!user) return;
+
+  // 認証ヘッダー描画
+  renderAuthHeader(document.getElementById('app-header'), user, 'admin');
+
   showLoading(true);
 
   try {
@@ -33,7 +76,7 @@ async function init() {
     if (!indexResponse.ok) throw new Error('Failed to load index');
     state.subjectsIndex = await indexResponse.json();
 
-    // 全科目の問題を読み込む
+    // 全科目の問題を読み込む（静的JSONファイル）
     const allQuestions = [];
     for (const subject of state.subjectsIndex.subjects) {
       const response = await fetch(`data/questions/${subject.file}`);
@@ -43,10 +86,30 @@ async function init() {
       }
     }
 
-    state.allQuestions = allQuestions;
-    state.filteredQuestions = [...allQuestions];
+    // localStorageからインポート済み問題もマージ
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const importedQuestions = JSON.parse(saved);
+        if (Array.isArray(importedQuestions) && importedQuestions.length > 0) {
+          allQuestions.push(...importedQuestions);
+          console.log(`Merged ${importedQuestions.length} imported questions from localStorage`);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load imported questions:', e);
+    }
 
-    console.log(`Loaded ${allQuestions.length} questions from ${state.subjectsIndex.subjects.length} subjects`);
+    // 削除済みIDを除外
+    const deletedIds = loadDeletedIds();
+    const filtered = deletedIds.size > 0
+      ? allQuestions.filter(q => !deletedIds.has(q.id))
+      : allQuestions;
+
+    state.allQuestions = filtered;
+    state.filteredQuestions = [...filtered];
+
+    console.log(`Loaded ${filtered.length} total questions`);
 
     showLoading(false);
 
@@ -81,6 +144,12 @@ function showLoading(show) {
  * イベントリスナーを設定
  */
 function setupEventListeners() {
+  // 検索
+  document.getElementById('search-input').addEventListener('input', debounce((e) => {
+    state.searchQuery = e.target.value.trim().toLowerCase();
+    applyFilter();
+  }, 300));
+
   // フィルター
   document.getElementById('filter-subject').addEventListener('change', onFilterSubjectChange);
   document.getElementById('filter-theme').addEventListener('change', onFilterThemeChange);
@@ -98,6 +167,17 @@ function setupEventListeners() {
   document.getElementById('exam-next-btn').addEventListener('click', () => navigateExam(1));
   document.getElementById('retry-btn').addEventListener('click', retryExam);
   document.getElementById('back-to-list-btn').addEventListener('click', backToList);
+
+  // 選択バー
+  document.getElementById('deselect-all-btn').addEventListener('click', deselectAll);
+  document.getElementById('create-set-selected-btn').addEventListener('click', () => openCreateSetModal(true));
+  document.getElementById('delete-selected-btn').addEventListener('click', deleteSelected);
+
+  // 問題セット作成
+  document.getElementById('create-set-btn').addEventListener('click', () => openCreateSetModal(false));
+  document.getElementById('close-create-set-btn').addEventListener('click', closeCreateSetModal);
+  document.getElementById('create-set-modal').querySelector('.modal-backdrop').addEventListener('click', closeCreateSetModal);
+  document.getElementById('create-set-submit-btn').addEventListener('click', onCreateQuestionSet);
 }
 
 /**
@@ -265,20 +345,24 @@ function filterByTheme(subject, theme) {
  */
 function applyFilter() {
   const { subject, theme } = state.currentFilter;
+  const query = state.searchQuery;
 
   state.filteredQuestions = state.allQuestions.filter(q => {
     if (subject && (q.subject || '未分類') !== subject) return false;
     if (theme && (q.theme || '未分類') !== theme) return false;
+    if (!matchesSearch(q, query)) return false;
     return true;
   });
 
   const filterResult = document.getElementById('filter-result');
   const filterResultText = document.getElementById('filter-result-text');
 
-  if (subject || theme) {
+  if (subject || theme || query) {
     filterResult.hidden = false;
-    let filterDesc = subject || '';
+    let filterDesc = '';
+    if (subject) filterDesc = subject;
     if (theme) filterDesc += ` > ${theme}`;
+    if (query) filterDesc += (filterDesc ? ' / ' : '') + `「${query}」`;
     filterResultText.textContent = `${filterDesc}: ${state.filteredQuestions.length}問`;
   } else {
     filterResult.hidden = true;
@@ -292,9 +376,11 @@ function applyFilter() {
  */
 function clearFilter() {
   state.currentFilter = { subject: '', theme: '' };
+  state.searchQuery = '';
   document.getElementById('filter-subject').value = '';
   document.getElementById('filter-theme').value = '';
   document.getElementById('filter-theme').disabled = true;
+  document.getElementById('search-input').value = '';
   document.getElementById('filter-result').hidden = true;
   state.filteredQuestions = [...state.allQuestions];
   renderQuestions();
@@ -328,7 +414,12 @@ function renderQuestions() {
     const header = document.createElement('div');
     header.className = 'question-group-header';
     header.innerHTML = `
-      <h3>${escapeHtml(subject)}</h3>
+      <div class="question-group-header-left">
+        <label class="group-checkbox-label" title="このグループをすべて選択">
+          <input type="checkbox" class="group-select-checkbox" data-subject="${escapeHtml(subject)}">
+        </label>
+        <h3>${escapeHtml(subject)}</h3>
+      </div>
       <div class="question-group-actions">
         <button class="btn-icon-sm expand-group-btn" title="このグループを展開">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -345,6 +436,22 @@ function renderQuestions() {
     `;
     card.appendChild(header);
 
+    // グループ全選択チェックボックス
+    const groupCheckbox = header.querySelector('.group-select-checkbox');
+    groupCheckbox.addEventListener('change', () => {
+      const ids = questions.map(q => q.id);
+      if (groupCheckbox.checked) {
+        ids.forEach(id => state.selectedIds.add(id));
+      } else {
+        ids.forEach(id => state.selectedIds.delete(id));
+      }
+      // 個別チェックボックスを同期
+      card.querySelectorAll('.question-select-checkbox').forEach(cb => {
+        cb.checked = groupCheckbox.checked;
+      });
+      updateSelectionBar();
+    });
+
     // グループ展開/折りたたみボタンのイベント
     header.querySelector('.expand-group-btn').addEventListener('click', () => {
       card.querySelectorAll('.accordion-item').forEach(item => item.classList.add('expanded'));
@@ -357,27 +464,35 @@ function renderQuestions() {
     list.className = 'accordion-list';
 
     questions.forEach((q, i) => {
-      const item = createAccordionItem(q, i + 1);
+      const item = createAccordionItem(q, i + 1, groupCheckbox, questions);
       list.appendChild(item);
     });
 
     card.appendChild(list);
     container.appendChild(card);
   });
+
+  // 選択状態を復元
+  updateSelectionBar();
 }
 
 /**
  * アコーディオンアイテムを作成
  */
-function createAccordionItem(question, number) {
+function createAccordionItem(question, number, groupCheckbox, groupQuestions) {
   const item = document.createElement('div');
   item.className = 'accordion-item';
   item.dataset.id = question.id;
+
+  const isSelected = state.selectedIds.has(question.id);
 
   const header = document.createElement('div');
   header.className = 'accordion-header';
   header.innerHTML = `
     <div class="accordion-header-left">
+      <label class="question-checkbox-label" title="選択">
+        <input type="checkbox" class="question-select-checkbox" data-id="${question.id}" ${isSelected ? 'checked' : ''}>
+      </label>
       <span class="accordion-number">${number}</span>
       <span class="accordion-theme">${escapeHtml(question.theme || '')}</span>
     </div>
@@ -408,16 +523,185 @@ function createAccordionItem(question, number) {
       <div class="explanation-label">解説</div>
       ${escapeHtml(question.explanation || '解説なし')}
     </div>
+    <div class="accordion-actions">
+      <button class="btn btn-danger btn-sm delete-question-btn" data-id="${question.id}">この問題を削除</button>
+    </div>
   `;
 
-  header.addEventListener('click', () => {
+  // チェックボックスのクリック
+  const checkbox = header.querySelector('.question-select-checkbox');
+  checkbox.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) {
+      state.selectedIds.add(question.id);
+    } else {
+      state.selectedIds.delete(question.id);
+    }
+    // グループチェックボックスの状態を同期
+    const allInGroup = groupQuestions.every(q => state.selectedIds.has(q.id));
+    const someInGroup = groupQuestions.some(q => state.selectedIds.has(q.id));
+    groupCheckbox.checked = allInGroup;
+    groupCheckbox.indeterminate = someInGroup && !allInGroup;
+    updateSelectionBar();
+  });
+
+  // ヘッダークリックで展開（チェックボックス以外）
+  header.addEventListener('click', (e) => {
+    if (e.target.closest('.question-checkbox-label')) return;
     item.classList.toggle('expanded');
+  });
+
+  // 個別削除
+  content.querySelector('.delete-question-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteQuestions([question.id]);
   });
 
   item.appendChild(header);
   item.appendChild(content);
 
   return item;
+}
+
+// ====================
+// 選択・一括削除
+// ====================
+
+/**
+ * 選択バーの表示を更新
+ */
+function updateSelectionBar() {
+  const bar = document.getElementById('selection-bar');
+  const count = state.selectedIds.size;
+  if (count > 0) {
+    bar.hidden = false;
+    document.getElementById('selected-count').textContent = `${count}問を選択中`;
+  } else {
+    bar.hidden = true;
+  }
+}
+
+/**
+ * すべての選択を解除
+ */
+function deselectAll() {
+  state.selectedIds.clear();
+  document.querySelectorAll('.question-select-checkbox, .group-select-checkbox').forEach(cb => {
+    cb.checked = false;
+    cb.indeterminate = false;
+  });
+  updateSelectionBar();
+}
+
+/**
+ * 選択した問題を一括削除
+ */
+function deleteSelected() {
+  const count = state.selectedIds.size;
+  if (count === 0) return;
+  if (!confirm(`選択した${count}問を削除しますか？\nこの操作は取り消せません。`)) return;
+
+  deleteQuestions([...state.selectedIds]);
+  state.selectedIds.clear();
+}
+
+// ====================
+// 問題セット作成
+// ====================
+
+/**
+ * 問題セット作成対象の問題を取得
+ */
+function getQuestionsForSet(fromSelection) {
+  if (fromSelection && state.selectedIds.size > 0) {
+    return state.allQuestions.filter(q => state.selectedIds.has(q.id));
+  }
+  // 選択なし → フィルタ中ならフィルタ結果、そうでなければ全問題
+  return state.filteredQuestions.length > 0 ? state.filteredQuestions : state.allQuestions;
+}
+
+/**
+ * モーダルを開く
+ */
+function openCreateSetModal(fromSelection) {
+  const questions = getQuestionsForSet(fromSelection);
+  if (questions.length === 0) {
+    alert('問題がありません。');
+    return;
+  }
+
+  // 対象問題をモーダルに記録
+  state._setTargetFromSelection = fromSelection;
+
+  const modal = document.getElementById('create-set-modal');
+  document.getElementById('set-question-count').textContent = questions.length;
+
+  // タイトルのデフォルト値
+  const titleInput = document.getElementById('set-title-input');
+  if (!titleInput.value) {
+    const { subject, theme } = state.currentFilter;
+    if (subject) {
+      titleInput.value = `${subject}${theme ? ' - ' + theme : ''}`;
+    }
+  }
+
+  modal.hidden = false;
+}
+
+function closeCreateSetModal() {
+  document.getElementById('create-set-modal').hidden = true;
+}
+
+async function onCreateQuestionSet() {
+  const title = document.getElementById('set-title-input').value.trim();
+  const description = document.getElementById('set-description-input').value.trim();
+
+  if (!title) {
+    alert('タイトルを入力してください。');
+    return;
+  }
+
+  const submitBtn = document.getElementById('create-set-submit-btn');
+  submitBtn.querySelector('.btn-text').hidden = true;
+  submitBtn.querySelector('.btn-loading').hidden = false;
+  submitBtn.disabled = true;
+
+  try {
+    const user = getCurrentUser();
+    const targetQuestions = getQuestionsForSet(state._setTargetFromSelection);
+
+    const questions = targetQuestions.map((q, i) => ({
+      id: q.id || `q_${Date.now()}_${i}`,
+      question: q.question,
+      choices: q.choices,
+      answer: q.answer,
+      explanation: q.explanation || '',
+      subject: q.subject || '',
+      theme: q.theme || ''
+    }));
+
+    await createQuestionSet({
+      title,
+      description,
+      questions,
+      createdBy: user.uid
+    });
+
+    closeCreateSetModal();
+    document.getElementById('set-title-input').value = '';
+    document.getElementById('set-description-input').value = '';
+    alert(`問題セットを作成しました（${questions.length}問）。\n「問題セット」ページで共有コードを確認できます。`);
+
+  } catch (error) {
+    console.error('Failed to create question set:', error);
+    alert('問題セットの作成に失敗しました: ' + error.message);
+  } finally {
+    submitBtn.querySelector('.btn-text').hidden = false;
+    submitBtn.querySelector('.btn-loading').hidden = true;
+    submitBtn.disabled = false;
+  }
 }
 
 /**
@@ -683,6 +967,70 @@ function showAllSections() {
       el.hidden = false;
     }
   });
+}
+
+// ====================
+// 問題削除
+// ====================
+
+/**
+ * 削除済みIDセットを読み込む
+ */
+function loadDeletedIds() {
+  try {
+    const data = localStorage.getItem(DELETED_KEY);
+    return data ? new Set(JSON.parse(data)) : new Set();
+  } catch (e) {
+    return new Set();
+  }
+}
+
+/**
+ * 削除済みIDを保存
+ */
+function saveDeletedIds(ids) {
+  localStorage.setItem(DELETED_KEY, JSON.stringify([...ids]));
+}
+
+/**
+ * 問題を一括削除
+ * @param {string[]} ids - 削除する問題IDの配列
+ */
+function deleteQuestions(ids) {
+  if (ids.length === 1 && !confirm('この問題を削除しますか？')) return;
+
+  const idsSet = new Set(ids);
+
+  // インポート済み問題をlocalStorageから削除
+  const importedIds = ids.filter(id => id.startsWith('imported_'));
+  if (importedIds.length > 0) {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const questions = JSON.parse(saved);
+        const importedIdsSet = new Set(importedIds);
+        const updated = questions.filter(q => !importedIdsSet.has(q.id));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.error('Failed to delete imported questions:', e);
+    }
+  }
+
+  // 静的JSON問題は削除IDリストに追加
+  const staticIds = ids.filter(id => !id.startsWith('imported_'));
+  if (staticIds.length > 0) {
+    const deletedIds = loadDeletedIds();
+    staticIds.forEach(id => deletedIds.add(id));
+    saveDeletedIds(deletedIds);
+  }
+
+  // stateから除外して再描画
+  state.allQuestions = state.allQuestions.filter(q => !idsSet.has(q.id));
+  state.filteredQuestions = state.filteredQuestions.filter(q => !idsSet.has(q.id));
+  renderStatsDashboard();
+  updateFilterDropdowns();
+  renderQuestions();
 }
 
 // ====================

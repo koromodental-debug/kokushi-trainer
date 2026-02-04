@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ヘルパー: 認証済みか
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ヘルパー: 管理者か
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ヘルパー: 本人か
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // ==================
+    // users コレクション
+    // ==================
+    match /users/{uid} {
+      // 読み取り: 本人 or 管理者
+      allow read: if isOwner(uid) || isAdmin();
+
+      // 作成: 本人のみ、roleは必ずstudent
+      allow create: if isOwner(uid) &&
+        request.resource.data.role == 'student';
+
+      // 更新: 本人は自分のプロフィールのみ（roleの変更不可）
+      //        管理者はroleの変更可
+      allow update: if isOwner(uid) && !('role' in request.resource.data) ||
+                       isOwner(uid) && request.resource.data.role == resource.data.role ||
+                       isAdmin();
+    }
+
+    // ========================
+    // questionSets コレクション
+    // ========================
+    match /questionSets/{setId} {
+      // 読み取り: 認証済みユーザー全員
+      allow read: if isAuthenticated();
+
+      // 作成・更新・削除: 管理者のみ
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ==================
+    // grades コレクション
+    // ==================
+    match /grades/{gradeId} {
+      // 読み取り: 本人の成績 or 管理者は全件
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+
+      // 作成: 認証済みユーザー（自分のユーザーIDのみ）
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+
+      // 更新・削除: 不可（一度保存したら変更不可）
+      allow update, delete: if false;
+    }
+  }
+}

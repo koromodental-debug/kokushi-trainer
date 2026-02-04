@@ -8,8 +8,8 @@
 </head>
 <body>
   <div id="app">
-    <!-- ヘッダー -->
-    <header class="header">
+    <!-- ヘッダー (認証時はJSで上書き) -->
+    <header class="header" id="app-header">
       <h1 class="header-title">国試トレーナー</h1>
       <button id="settings-btn" class="icon-btn" aria-label="設定">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -130,6 +130,7 @@
             <div class="results-actions">
               <button id="export-csv-btn" class="btn btn-secondary btn-sm">CSVエクスポート</button>
               <button id="export-json-btn" class="btn btn-secondary btn-sm">JSONエクスポート</button>
+              <button id="create-set-btn" class="btn btn-warning btn-sm">問題セットに追加</button>
               <button id="start-exam-btn" class="btn btn-accent btn-sm">模擬試験を開始</button>
             </div>
           </div>
@@ -263,6 +264,42 @@
       </div>
     </div>
   </div>
+
+    <!-- 問題セット作成モーダル -->
+    <div id="create-set-modal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">問題セットを作成</h2>
+          <button id="close-create-set-btn" class="icon-btn" aria-label="閉じる">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">タイトル</label>
+            <input type="text" id="set-title-input" class="form-input" placeholder="例: 第1回 基礎テスト">
+          </div>
+          <div class="form-group">
+            <label class="form-label">説明（任意）</label>
+            <input type="text" id="set-description-input" class="form-input" placeholder="例: 保存修復の基礎問題">
+          </div>
+          <p class="form-hint">現在の生成結果（<span id="set-question-count">0</span>問）を問題セットとして保存し、共有コードを発行します。</p>
+        </div>
+        <div class="modal-footer">
+          <button id="create-set-submit-btn" class="btn btn-primary">
+            <span class="btn-text">作成する</span>
+            <span class="btn-loading" hidden>
+              <span class="spinner"></span>
+              作成中...
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
 
   <script type="module" src="js/app.js"></script>
 </body>
